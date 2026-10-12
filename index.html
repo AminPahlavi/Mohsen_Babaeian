@@ -88,13 +88,28 @@ function DATA(){return mode==="premium"?PREMIUM_DATA:NORMAL_DATA}
 function save(){localStorage.setItem(KEY,JSON.stringify([...used]))}
 function esc(s){return String(s||"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
 function lab(t){return t==="direct"?"پست مستقیم":t==="reply"?"ریپلای":"کوت‌پست"}
+// Build the complete, encoded X composer URL from the current post data.
+// The exported data contains only placeholder URLs ending in text=.
+function composeIntent(x){
+ let message=x.text;
+ if(x.type==="quote" && x.source && !message.includes(x.source)){
+   message += "\n\n" + x.source;
+ }
+ const params=new URLSearchParams();
+ if(x.type==="reply" && x.source){
+   const match=x.source.match(/\/status\/(\d+)/);
+   if(match)params.set("in_reply_to",match[1]);
+ }
+ params.set("text",message);
+ return "https://x.com/intent/tweet?"+params.toString();
+}
 function filtered(){const z=q.trim().toLowerCase();return DATA().filter(x=>(active==="all"||x.type===active)&&(!onlyUnused||!used.has(x.id))&&(!z||(x.text+" "+x.mentions+" "+x.source+" "+x.sourceGroup).toLowerCase().includes(z)))}
 function progress(){const ids=new Set(DATA().map(x=>x.id));const n=[...used].filter(id=>ids.has(id)).length;usedCount.textContent=n;totalCount.textContent=DATA().length;progressFill.style.width=(n/Math.max(1,DATA().length)*100)+"%"}
 function paginationHTML(pages){return `<div class="pagination"><button class="edge" data-nav="first">« اول</button><button data-nav="prev">‹ قبل</button><span class="page-info">Page ${page} / ${pages}</span><button data-nav="next">بعد ›</button><button class="edge" data-nav="last">آخر »</button></div>`}
 function bindPagination(){document.querySelectorAll("[data-nav]").forEach(b=>b.onclick=()=>{const pages=Math.max(1,Math.ceil(filtered().length/PAGE_SIZE));if(b.dataset.nav==="first")page=1;if(b.dataset.nav==="prev")page=Math.max(1,page-1);if(b.dataset.nav==="next")page=Math.min(pages,page+1);if(b.dataset.nav==="last")page=pages;render()})}
 function render(){
  const arr=filtered(),pages=Math.max(1,Math.ceil(arr.length/PAGE_SIZE));page=Math.max(1,Math.min(page,pages));const sl=arr.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE);resultCount.textContent=arr.length;
- grid.innerHTML=sl.map(x=>{const u=used.has(x.id),src=x.source?`<span class="source-account">Source: ${esc(x.sourceAccount||"X post")} · ${esc(x.sourceGroup||"")}</span>`:"";const acts=x.source?`<div class="actions"><button class="copy" data-copy="${x.id}">Copy</button><a class="open btn" target="_blank" rel="noopener" href="${esc(x.intent)}">Open X</a><a class="source btn" target="_blank" rel="noopener" href="${esc(x.source)}">Source</a></div>`:`<div class="actions two"><button class="copy" data-copy="${x.id}">Copy</button><a class="open btn" target="_blank" rel="noopener" href="${esc(x.intent)}">Open X</a></div>`;const pb=mode==="premium"?'<span class="premium-badge">Premium</span>':"";return `<article class="card ${mode==="premium"?"premium-card":""} ${u?"used":""} ${flashId===x.id?"flash":""}" id="card-${x.id}"><div class="card-top"><span style="display:flex;align-items:center;gap:6px"><span class="badge ${x.type}">${lab(x.type)}</span>${pb}</span><span class="num">#${x.num} · ${x.chars} chars</span></div><div class="text">${esc(x.text)}</div><div class="meta"><span>${esc(x.mentions)}</span>${src}</div>${acts}<label class="used-toggle"><input type="checkbox" data-used="${x.id}" ${u?"checked":""}> استفاده شده</label></article>`}).join("");
+ grid.innerHTML=sl.map(x=>{const u=used.has(x.id),src=x.source?`<span class="source-account">Source: ${esc(x.sourceAccount||"X post")} · ${esc(x.sourceGroup||"")}</span>`:"";const acts=x.source?`<div class="actions"><button class="copy" data-copy="${x.id}">Copy</button><a class="open btn" target="_blank" rel="noopener" href="${esc(composeIntent(x))}">Open X</a><a class="source btn" target="_blank" rel="noopener" href="${esc(x.source)}">Source</a></div>`:`<div class="actions two"><button class="copy" data-copy="${x.id}">Copy</button><a class="open btn" target="_blank" rel="noopener" href="${esc(composeIntent(x))}">Open X</a></div>`;const pb=mode==="premium"?'<span class="premium-badge">Premium</span>':"";return `<article class="card ${mode==="premium"?"premium-card":""} ${u?"used":""} ${flashId===x.id?"flash":""}" id="card-${x.id}"><div class="card-top"><span style="display:flex;align-items:center;gap:6px"><span class="badge ${x.type}">${lab(x.type)}</span>${pb}</span><span class="num">#${x.num} · ${x.chars} chars</span></div><div class="text">${esc(x.text)}</div><div class="meta"><span>${esc(x.mentions)}</span>${src}</div>${acts}<label class="used-toggle"><input type="checkbox" data-used="${x.id}" ${u?"checked":""}> استفاده شده</label></article>`}).join("");
  document.getElementById("top-pagination").innerHTML=paginationHTML(pages);document.getElementById("bottom-pagination").innerHTML=paginationHTML(pages);bindPagination();document.querySelectorAll('[data-nav="first"],[data-nav="prev"]').forEach(b=>b.disabled=page<=1);document.querySelectorAll('[data-nav="last"],[data-nav="next"]').forEach(b=>b.disabled=page>=pages);progress();
  if(flashId){requestAnimationFrame(()=>{const el=document.getElementById("card-"+flashId);if(el)el.scrollIntoView({behavior:"smooth",block:"center"});setTimeout(()=>{if(el)el.classList.remove("flash");flashId=""},1300)})}
 }
